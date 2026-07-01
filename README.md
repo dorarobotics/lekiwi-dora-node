@@ -30,33 +30,60 @@ cd lekiwi-dora-node
 PYTHONPATH=. pytest tests -v
 ```
 
-All 56 tests should pass without a running dora runtime or MuJoCo instance.
+All 63 tests should pass without a running dora runtime. The `test_sim_scene.py`
+MuJoCo-layout checks skip automatically where `mujoco` is not installed; the
+scene-string and base-integrator assertions still run.
 
 ## Simulation dataflow
 
 `dataflows/lekiwi-mujoco-bridge.yml` wires three nodes:
 
-1. **mujoco_sim** — dora-mujoco runner, loads `assets/mjcf_lcmm_robot.xml`, publishes `joint_positions`, consumes `control`.
+1. **mujoco_sim** — the lekiwi-specific sim node (`python -m lekiwi_node.mujoco_sim`), builds the physics-ready scene from `assets/mjcf_lcmm_robot.xml`, publishes `joint_positions`, consumes `control`.
 2. **lekiwi_node** — this package (`python -m lekiwi_node`), consumes `joint_positions` + `cmd_request`, emits `control` + `cmd_response`.
 3. **bridge** — `octos_spec_bridge` on HTTP port 8770, routes SPEC commands to/from lekiwi_node.
 
-To run the dataflow on a sim host:
+To run the dataflow on a sim host (venv-python needs `dora`, `mujoco`, `drive-kinematics`, `lekiwi_node`, `octos_spec_bridge`):
 
 ```bash
-# Resolve env vars and run
-export DORA_MOVEIT2=/path/to/dora-moveit2
 export LEKIWI_NODE=/path/to/lekiwi-dora-node
 dora up
 dora start dataflows/lekiwi-mujoco-bridge.yml
 ```
 
-## Live bring-up (pending)
+## Sim model & base loop (resolved offline)
 
-The following require a live sim host and are deferred. The vendored `assets/mjcf_lcmm_robot.xml` needs sim work (A1–A3 below) before the live demo can run.
+The shipped `assets/mjcf_lcmm_robot.xml` is a CAD export that is **not** runnable
+as a mobile robot; `lekiwi_node/sim_scene.py::build_scene()` makes it physics-ready
+by text-injection (source never mutated), and `lekiwi_node/mujoco_sim.py` closes
+the base loop. All of the following were verified in headless MuJoCo (see
+`tests/test_sim_scene.py` and the offline forward/strafe/spin rollout):
 
-- **V1 (wheel-index / angle correspondence)** — the MJCF mounts three omni-wheels at specific headings; the KiwiDrive mount angles (hard-coded inline in `lekiwi_node/kinematics.py` as `np.radians(np.array([240, 0, 120]) - 90)` = [150°, −90°, 30°]) must be verified against the physical layout and adjusted if the robot drifts instead of translating cleanly. See A3.
-- **V2 (`joint_positions` layout)** — `__main__.py` assumes the free-joint DOF occupy indices 0–6 (x, y, z, qw, qx, qy, qz) and arm joints occupy indices 7–12. This must be confirmed against the actual dora-mujoco `joint_positions` output for this MJCF before deploying.
-- **A1 (base has no free joint)** — the vendored `mjcf_lcmm_robot.xml` welds the base to the worldbody (only 9 hinge joints; no `<freejoint>`), so the base cannot translate and `joint_positions` won't contain the base pose the extractors assume. Add a base free joint (or float it in the runner) and re-confirm the `_base_pose` index layout.
-- **A2 (wheel actuators are `<motor>`, i.e. force, not `<velocity>`)** — the code commands wheel angular velocities (rad/s), but the three `drive_motor_*` actuators are `<motor>` (force) actuators. Change them to `<velocity>` (or document the runner's force/velocity conversion).
-- **A3 (wheel-index↔angle mapping is confirmed mismatched, V1)** — by actuator index the MJCF mounts are drive_motor_1 = −90°, _2 = +30°, _3 = +150°, but KiwiDrive emits rows [150°, −90°, 30°] to w1/w2/w3 — a cyclic reorder is required.
-- **A4 (safety + extractor gaps)** — estop is latching with no release verb; and the extractor quaternion/slice assumptions (`_base_pose`/`_arm_joints`) are unit-untested (the V2 surface).
+- **A1 (no free joint)** — the source welds three separate top-level bodies
+  (base_plate_layer1 = wheels, base_plate_layer2 = arm, drive_motor_mount-v4 =
+  orphan) to the world. `build_scene` wraps all three in one `chassis` body with a
+  `<freejoint name="base_free">`, so the whole robot is one rigid free body.
+- **A2 (`<motor>` → `<velocity>`)** — the three `drive_motor_*` actuators are
+  converted to `<velocity kv="8">`, so `ctrl` is a target wheel speed (rad/s).
+- **Contacts/gravity off** — the shipped omniwheels are single rigid bodies (no
+  rollers), so wheel-ground contact **cannot** produce holonomic motion; confirmed
+  empirically that spinning the wheels moves the free base 0.000000 m. Base motion
+  is therefore **kinematically integrated**: `mujoco_sim` recovers the body twist
+  from the wheel speeds (`KiwiDrive.wheels_to_body`, exact inverse of the runtime
+  IK), forward-integrates the pose, and writes it into the `base_free` qpos. The
+  wheels still physically spin (visual fidelity). This is why the dataflow uses a
+  lekiwi-specific sim node, not the generic dora-mujoco runner — and why the tick
+  period must equal `SIM_DT`.
+- **V2 (`joint_positions` layout)** — verified nq=16: `base_free` at qpos **0:7**
+  (x, y, z, qw, qx, qy, qz), 3 wheel hinges at **7:10**, arm joints at **10:16**.
+  `__main__.py` extractors read base 0:6 and arm 10:16 accordingly (the earlier
+  7:12 arm assumption was wrong).
+- **A3 (wheel-index ↔ angle mapping)** — **not load-bearing**: base pose is
+  integrated, so the physical wheel assignment only affects the visual spin. The
+  IK/FK round-trips exactly regardless of ordering.
+
+### Still pending (needs a live sim host; asus currently unreachable)
+
+- Full dataflow bring-up under a running `dora` daemon with `octos_spec_bridge`
+  (the offline rollout exercises the exact command→wheels→recover→integrate path,
+  but not the HTTP/SPEC front or dora transport).
+- **A4** — estop is latching with no release verb (unchanged; a product decision).

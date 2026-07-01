@@ -1,18 +1,23 @@
-# NOTE: node path/env keys must be reconciled against the actual dora-mujoco and octos_spec_bridge contracts during live bring-up (V1/V2).
+# LeKiwi (arm + 3-wheel omni base) as one octos SPEC robot, driven in MuJoCo.
 #
-# Run from a directory that has ./venv-python (virtualenv with dora, dora-mujoco, octos_spec_bridge installed).
-# Resolve ${VARS} before use:
-#   ${DORA_MOVEIT2}  — checkout of dora-mujoco (contains dora_mujoco/main.py)
-#   ${LEKIWI_NODE}   — checkout of lekiwi-dora-node (this repo)
+# The sim node is lekiwi-specific (lekiwi_node.mujoco_sim), NOT the generic
+# dora-mujoco runner: the physics-ready scene disables contacts (single-body
+# omniwheels can't roll), so the free base does not translate from wheel spin —
+# base pose is kinematically integrated from the commanded wheel speeds. The tick
+# period MUST equal SIM_DT (50 ms here) so the integrator advances in real time.
+#
+# Run from a directory whose ./venv-python has dora, mujoco, drive-kinematics,
+# lekiwi_node, and octos_spec_bridge installed. Resolve ${LEKIWI_NODE} to this
+# repo checkout.
 nodes:
   - id: mujoco_sim
     path: ./venv-python
-    args: ${DORA_MOVEIT2}/dora-mujoco/dora_mujoco/main.py
+    args: -m lekiwi_node.mujoco_sim
     env:
-      MUJOCO_HEADLESS: "1"
-      MODEL_NAME: "${LEKIWI_NODE}/assets/mjcf_lcmm_robot.xml"
+      SIM_DT: "0.05"
+      PYTHONPATH: "${LEKIWI_NODE}"
     inputs:
-      tick: dora/timer/millis/10
+      tick: dora/timer/millis/50
       control: lekiwi_node/control
     outputs:
       - joint_positions

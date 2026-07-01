@@ -21,10 +21,13 @@ def _base_pose(value) -> Pose2D | None:
 
 
 def _arm_joints(value) -> list[float]:
+    # Verified qpos layout (physics-ready scene, sim_scene.build_scene): nq=16 ==
+    # base_free[0:7] + 3 wheel hinges[7:10] + 6 arm joints[10:16]. Confirmed by
+    # loading the built scene in headless MuJoCo (Rotation..Jaw at qpos 10-15).
     arr = np.asarray(value)
-    if arr.shape[0] < 13:
-        return []  # malformed layout: runtime pads to length; VERIFY V2 joint layout live
-    return [float(v) for v in arr[7:13]]
+    if arr.shape[0] < 16:
+        return []  # malformed layout: runtime pads to length
+    return [float(v) for v in arr[10:16]]
 
 
 def main() -> None:

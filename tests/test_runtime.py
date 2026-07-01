@@ -20,6 +20,11 @@ def _rt():
         base_pose_from=lambda arr: Pose2D(float(arr[0]), float(arr[1]), float(arr[2])),
         arm_joints_from=lambda arr: [float(x) for x in arr[3:9]],
         deadline_s=60.0,
+        # Large watchdog so the positive-path set_velocity test never depends on
+        # wall-clock (the 0.5s default could fire under suite load between the
+        # set_velocity and joint_positions events). Watchdog-firing has its own
+        # test that forces velocity_timeout_s=-1.0.
+        velocity_timeout_s=1e9,
     )
     return n, rt
 
