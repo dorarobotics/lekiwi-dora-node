@@ -1,37 +1,28 @@
 from __future__ import annotations
 
-import numpy as np
+from drive_kinematics import Kiwi
 
 from lekiwi_node.geometry import Twist
 
 
 class KiwiDrive:
-    """3-wheel omnidirectional (kiwi) kinematics, ported from LeRobot lekiwi.py.
-
-    Wheels mounted at body angles [150, -90, 30] deg (= radians([240,0,120]) - 90).
-    body_to_wheels: (vx, vy, omega) [m/s, m/s, rad/s] -> 3 wheel angular speeds [rad/s].
-    wheels_to_body: inverse. The 3x3 mount matrix is invertible, so it round-trips.
-    """
+    """Adapter over drive_kinematics.Kiwi, preserving the lekiwi KiwiDrive API.
+    The kinematics live in the shared drive-kinematics library (sub-project A)."""
 
     def __init__(self, wheel_radius: float = 0.05, base_radius: float = 0.125,
                  max_wheel_omega: float = 30.0) -> None:
+        self._k = Kiwi(wheel_radius=wheel_radius, base_radius=base_radius,
+                       max_wheel_speed=max_wheel_omega)
+        # Retained for API compatibility only — read-only snapshots of the ctor args;
+        # mutating them does NOT change the active clamp (the kinematics live in self._k).
         self.wheel_radius = wheel_radius
         self.base_radius = base_radius
         self.max_wheel_omega = max_wheel_omega
-        angles = np.radians(np.array([240.0, 0.0, 120.0]) - 90.0)  # [150, -90, 30] deg
-        self._m = np.array([[np.cos(a), np.sin(a), base_radius] for a in angles])
-        self._m_inv = np.linalg.inv(self._m)
 
     def body_to_wheels(self, vx: float, vy: float, omega: float) -> tuple[float, float, float]:
-        # Clamping is applied per-wheel independently, so under saturation the achieved
-        # body velocity differs in direction from the command (a safety backstop, not a
-        # motion primitive).
-        wheel_linear = self._m.dot(np.array([vx, vy, omega], dtype=float))
-        wheel_omega = wheel_linear / self.wheel_radius
-        clamped = np.clip(wheel_omega, -self.max_wheel_omega, self.max_wheel_omega)
-        return (float(clamped[0]), float(clamped[1]), float(clamped[2]))
+        w = self._k.body_to_wheels(vx, vy, omega)
+        return (w[0], w[1], w[2])
 
     def wheels_to_body(self, w1: float, w2: float, w3: float) -> Twist:
-        wheel_linear = np.array([w1, w2, w3], dtype=float) * self.wheel_radius
-        vx, vy, omega = self._m_inv.dot(wheel_linear)
-        return Twist(float(vx), float(vy), float(omega))
+        t = self._k.wheels_to_body(w1, w2, w3)
+        return Twist(t.vx, t.vy, t.omega)

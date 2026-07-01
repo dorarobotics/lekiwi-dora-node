@@ -2,7 +2,7 @@
 name = "lekiwi-dora-node"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = ["numpy", "pyarrow"]
+dependencies = ["numpy", "pyarrow", "drive-kinematics"]
 
 [build-system]
 requires = ["setuptools"]
