@@ -34,6 +34,7 @@ class HolonomicController:
         cs, sn = math.cos(current.yaw), math.sin(current.yaw)
         ex = cs * dx + sn * dy
         ey = -sn * dx + cs * dy
+        # Per-axis saturation distorts direction when both axes clip, but the P loop still converges.
         vx = _clamp(self.k_lin * ex, -self.max_lin, self.max_lin)
         vy = _clamp(self.k_lin * ey, -self.max_lin, self.max_lin)
         omega = _clamp(self.k_ang * dyaw, -self.max_ang, self.max_ang)

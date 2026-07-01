@@ -54,6 +54,15 @@ def test_error_is_rotated_into_body_frame():
     assert tw.vx > 0 and abs(tw.vy) < 1e-6
 
 
+def test_converges_from_nonzero_start_yaw():
+    # facing +y, must crab toward a world +x target while rotating yaw to 0.
+    c = HolonomicController()
+    p, reached = _rollout(c, Pose2D(0.0, 0.0, math.pi / 2), Pose2D(1.5, 0.0, 0.0))
+    assert reached is True
+    assert math.hypot(p.x - 1.5, p.y - 0.0) <= 0.05
+    assert abs(math.atan2(math.sin(p.yaw), math.cos(p.yaw))) <= 0.05
+
+
 def test_converges_lateral_and_reverse_and_spin_targets():
     c = HolonomicController()
     for target in [Pose2D(0.0, 1.5, 0.0), Pose2D(-1.5, 0.0, 0.0), Pose2D(1.0, -1.0, math.pi / 2)]:
