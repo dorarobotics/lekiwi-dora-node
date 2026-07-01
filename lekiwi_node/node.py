@@ -82,8 +82,12 @@ class LekiwiNode:
         if not isinstance(pose, dict) or "position" not in pose or "orientation" not in pose:
             return {"ok": False, "code": "INVALID_PARAMS",
                     "msg": "pose needs position[xyz] + orientation[xyzw]"}
-        x, y = float(pose["position"][0]), float(pose["position"][1])
-        qx, qy, qz, qw = (float(v) for v in pose["orientation"])
+        try:
+            x, y = float(pose["position"][0]), float(pose["position"][1])
+            qx, qy, qz, qw = (float(v) for v in pose["orientation"])
+        except (TypeError, ValueError, IndexError):
+            return {"ok": False, "code": "INVALID_PARAMS",
+                    "msg": "pose position needs >=2 coords, orientation needs 4"}
         self.base_target = Pose2D(x, y, yaw_from_quat(qw, qx, qy, qz))
         self.base_velocity = None
         return {"code": "DEFERRED"}
@@ -98,6 +102,7 @@ class LekiwiNode:
         guard = self._estop_guard()
         if guard:
             return guard
+        # arm_dof-1 arm-joint angles; the gripper is appended separately
         if len(joints) != self.arm_dof - 1:
             return {"ok": False, "code": "INVALID_PARAMS",
                     "msg": f"expected {self.arm_dof - 1} arm joints"}

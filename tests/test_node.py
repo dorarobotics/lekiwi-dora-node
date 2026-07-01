@@ -75,3 +75,38 @@ def test_capabilities_lists_both_namespaces():
     verbs = {c["verb"] for c in n.capabilities_advert()["commands"]}
     assert "vendor.dora_nav.base.go_to_pose" in verbs
     assert "vendor.lerobot.arm.move_to_joint_state" in verbs
+
+
+def test_set_velocity_then_go_to_pose_clears_velocity():
+    n = _node()
+    n.dispatch("vendor.dora_nav.base.set_velocity", {"vx": 1.0, "vy": 0.0, "omega": 0.0})
+    n.dispatch("vendor.dora_nav.base.go_to_pose",
+               {"pose": {"position": [0.5, 0.0, 0.0], "orientation": [0.0, 0.0, 0.0, 1.0]}})
+    assert n.base_velocity is None and n.base_target is not None
+
+
+def test_go_to_pose_then_set_velocity_clears_target():
+    n = _node()
+    n.dispatch("vendor.dora_nav.base.go_to_pose",
+               {"pose": {"position": [0.5, 0.0, 0.0], "orientation": [0.0, 0.0, 0.0, 1.0]}})
+    n.dispatch("vendor.dora_nav.base.set_velocity", {"vx": 1.0, "vy": 0.0, "omega": 0.0})
+    assert n.base_target is None and n.base_velocity is not None
+
+
+def test_go_to_pose_malformed_returns_invalid_params():
+    n = _node()
+    assert n.dispatch("vendor.dora_nav.base.go_to_pose", {"pose": {"position": [0.0]}})["code"] == "INVALID_PARAMS"
+    r = n.dispatch("vendor.dora_nav.base.go_to_pose",
+                   {"pose": {"position": [0.0, 0.0], "orientation": [0.0, 0.0, 1.0]}})
+    assert r["code"] == "INVALID_PARAMS" and r["ok"] is False
+
+
+def test_move_to_joint_state_wrong_count_invalid_params():
+    n = _node()
+    r = n.dispatch("vendor.lerobot.arm.move_to_joint_state", {"joints": [0.0, 0.0, 0.0]})
+    assert r["ok"] is False and r["code"] == "INVALID_PARAMS"
+
+
+def test_heartbeat_ok():
+    n = _node()
+    assert n.dispatch("robot.heartbeat", {}) == {"ok": True, "code": "0"}
