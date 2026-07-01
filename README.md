@@ -52,7 +52,11 @@ dora start dataflows/lekiwi-mujoco-bridge.yml
 
 ## Live bring-up (pending)
 
-Two checks require a live sim host and are deferred:
+The following require a live sim host and are deferred. The vendored `assets/mjcf_lcmm_robot.xml` needs sim work (A1–A3 below) before the live demo can run.
 
-- **V1 (wheel-index / angle correspondence)** — the MJCF places three omni-wheels at specific headings; the KiwiDrive geometry constants (`WHEEL_ANGLES`, default 0 / 120 / 240 deg) must be verified against the physical layout and adjusted if the robot drifts instead of translating cleanly.
+- **V1 (wheel-index / angle correspondence)** — the MJCF mounts three omni-wheels at specific headings; the KiwiDrive mount angles (hard-coded inline in `lekiwi_node/kinematics.py` as `np.radians(np.array([240, 0, 120]) - 90)` = [150°, −90°, 30°]) must be verified against the physical layout and adjusted if the robot drifts instead of translating cleanly. See A3.
 - **V2 (`joint_positions` layout)** — `__main__.py` assumes the free-joint DOF occupy indices 0–6 (x, y, z, qw, qx, qy, qz) and arm joints occupy indices 7–12. This must be confirmed against the actual dora-mujoco `joint_positions` output for this MJCF before deploying.
+- **A1 (base has no free joint)** — the vendored `mjcf_lcmm_robot.xml` welds the base to the worldbody (only 9 hinge joints; no `<freejoint>`), so the base cannot translate and `joint_positions` won't contain the base pose the extractors assume. Add a base free joint (or float it in the runner) and re-confirm the `_base_pose` index layout.
+- **A2 (wheel actuators are `<motor>`, i.e. force, not `<velocity>`)** — the code commands wheel angular velocities (rad/s), but the three `drive_motor_*` actuators are `<motor>` (force) actuators. Change them to `<velocity>` (or document the runner's force/velocity conversion).
+- **A3 (wheel-index↔angle mapping is confirmed mismatched, V1)** — by actuator index the MJCF mounts are drive_motor_1 = −90°, _2 = +30°, _3 = +150°, but KiwiDrive emits rows [150°, −90°, 30°] to w1/w2/w3 — a cyclic reorder is required.
+- **A4 (safety + extractor gaps)** — estop is latching with no release verb; and the extractor quaternion/slice assumptions (`_base_pose`/`_arm_joints`) are unit-untested (the V2 surface).

@@ -16,7 +16,7 @@ from lekiwi_node.base_controller import HolonomicController
 from lekiwi_node.control import assemble_control
 from lekiwi_node.geometry import Pose2D, Twist
 from lekiwi_node.kinematics import KiwiDrive
-from lekiwi_node.node import ARM_MOTION_VERBS, BASE_MOTION_VERBS, LekiwiNode
+from lekiwi_node.node import ARM_MOTION_VERBS, LekiwiNode
 
 # MJCF actuator order (from LeKiwi-sim/mjcf_lcmm_robot.xml); wheels then arm+gripper.
 ACTUATOR_ORDER = ["drive_motor_1", "drive_motor_2", "drive_motor_3",
@@ -52,7 +52,8 @@ class LekiwiRuntime:
                  kiwi: KiwiDrive | None = None,
                  base_ctrl: HolonomicController | None = None,
                  arm: ArmDriver | None = None,
-                 deadline_s: float = 60.0) -> None:
+                 deadline_s: float = 60.0,
+                 velocity_timeout_s: float = 0.5) -> None:
         self._node = node
         self._base_pose_from = base_pose_from
         self._arm_joints_from = arm_joints_from
@@ -60,6 +61,8 @@ class LekiwiRuntime:
         self._ctrl = base_ctrl or HolonomicController()
         self._arm = arm or ArmDriver(named_poses=node.named_arm_poses, dof=node.arm_dof)
         self._deadline_s = deadline_s
+        self._velocity_timeout_s = velocity_timeout_s
+        self._velocity_started: float | None = None
         self._base_pending: PendingOp | None = None
         self._arm_pending: PendingOp | None = None
 
@@ -71,8 +74,7 @@ class LekiwiRuntime:
                              params={}, target=None, spec_version="1.0.0",
                              trace_id=env.get("trace_id"))
             return build_cmd_response(bad, ok=False, code="INVALID_PARAMS", msg=str(e))
-        if req.verb in BASE_MOTION_VERBS and self._base_pending is not None \
-                and req.verb == "vendor.dora_nav.base.go_to_pose":
+        if self._base_pending is not None and req.verb == "vendor.dora_nav.base.go_to_pose":
             return build_cmd_response(req, ok=False, code="CONTROLLER_BUSY",
                                       msg="base motion in progress")
         if req.verb in ARM_MOTION_VERBS and self._arm_pending is not None:
@@ -86,6 +88,8 @@ class LekiwiRuntime:
             else:
                 self._base_pending = PendingOp(req, time.monotonic())
             return None
+        if req.verb == "vendor.dora_nav.base.set_velocity" and self._node.base_velocity is not None:
+            self._velocity_started = time.monotonic()
         # An immediate verb (stop/estop/set_velocity) may have cleared a target a
         # pending op depends on; abort that op now so the bridge gets prompt closure
         # instead of a false BRIDGE_TIMEOUT, and reconcile the arm driver.
@@ -131,7 +135,12 @@ class LekiwiRuntime:
         if self._node.base_target is not None and pose is not None:
             twist, base_reached = self._ctrl.step(pose, self._node.base_target)
         elif self._node.base_velocity is not None:
-            twist, base_reached = self._node.base_velocity, False
+            if (self._velocity_started is not None
+                    and time.monotonic() - self._velocity_started > self._velocity_timeout_s):
+                self._node.base_velocity = None  # watchdog: stale set_velocity auto-stops
+                twist, base_reached = Twist(0.0, 0.0, 0.0), False
+            else:
+                twist, base_reached = self._node.base_velocity, False
         else:
             twist, base_reached = Twist(0.0, 0.0, 0.0), False
         w1, w2, w3 = self._kiwi.body_to_wheels(twist.vx, twist.vy, twist.omega)

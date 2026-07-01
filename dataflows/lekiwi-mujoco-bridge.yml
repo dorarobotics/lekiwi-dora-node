@@ -23,6 +23,7 @@ nodes:
     env:
       ROBOT_ID: lekiwi
       MOTION_DEADLINE_S: "60"
+      VELOCITY_TIMEOUT_S: "0.5"
       PYTHONPATH: "${LEKIWI_NODE}"
     inputs:
       cmd_request: bridge/cmd_request

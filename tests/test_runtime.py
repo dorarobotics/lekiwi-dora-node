@@ -50,6 +50,23 @@ def test_set_velocity_emits_wheel_controls():
     assert abs(vec[0] - vec[1]) < 1e-6 and abs(vec[1] - vec[2]) < 1e-6 and vec[0] != 0.0
 
 
+def test_set_velocity_watchdog_auto_stops_when_stale():
+    from lekiwi_node.node import LekiwiNode
+    from lekiwi_node.runtime import LekiwiRuntime
+    from lekiwi_node.geometry import Pose2D
+    import numpy as np
+    n = LekiwiNode(robot_id="lekiwi", named_arm_poses={"home": [0, 0, 0, 0, 0, 0.5]})
+    n.install_all_verbs()
+    rt = LekiwiRuntime(n, base_pose_from=lambda a: Pose2D(float(a[0]), float(a[1]), float(a[2])),
+                       arm_joints_from=lambda a: [float(x) for x in a[3:9]], velocity_timeout_s=-1.0)
+    rt.on_event(_req("vendor.dora_nav.base.set_velocity", {"vx": 0.0, "vy": 0.0, "omega": 1.0}), _FakeDora())
+    dn = _FakeDora()
+    rt.on_event(_joints([0, 0, 0, 0, 0, 0, 0, 0, 0]), dn)
+    vec = list(np.asarray([o for o in dn.outputs if o[0] == "control"][0][1]).astype(float))
+    assert vec[0] == 0.0 and vec[1] == 0.0 and vec[2] == 0.0   # watchdog zeroed the wheels
+    assert n.base_velocity is None
+
+
 def test_go_to_pose_resolves_when_reached():
     n, rt = _rt()
     pose = {"position": [0.0, 0.0, 0.0], "orientation": [0.0, 0.0, 0.0, 1.0]}

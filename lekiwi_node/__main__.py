@@ -32,7 +32,8 @@ def main() -> None:
     node = LekiwiNode(robot_id=os.environ.get("ROBOT_ID", "lekiwi"), named_arm_poses={"home": HOME})
     node.install_all_verbs()
     deadline = float(os.environ.get("MOTION_DEADLINE_S", "60.0"))
-    rt = LekiwiRuntime(node, base_pose_from=_base_pose, arm_joints_from=_arm_joints, deadline_s=deadline)
+    rt = LekiwiRuntime(node, base_pose_from=_base_pose, arm_joints_from=_arm_joints, deadline_s=deadline,
+                       velocity_timeout_s=float(os.environ.get("VELOCITY_TIMEOUT_S", "0.5")))
     dora = Node()
     for event in dora:
         if not rt.on_event(event, dora):

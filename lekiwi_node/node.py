@@ -128,5 +128,5 @@ class LekiwiNode:
             "heartbeat_timeout_ms": 0,
             "commands": [{"verb": v, "safety_tier": "emergency_override"}
                          for v in sorted(self._verbs.keys())],
-            "streams": ["state", "capabilities"],
+            "streams": ["capabilities"],
         }
