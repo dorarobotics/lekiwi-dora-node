@@ -50,6 +50,20 @@ dora up
 dora start dataflows/lekiwi-mujoco-bridge.yml
 ```
 
+## Watch it live
+
+`examples/live_viewer.py` opens a native MuJoCo window and loops a demo
+(forward → strafe → spin → arm up/down) using this package's own kinematics.
+macOS needs the GUI on the main thread, so launch with `mjpython`:
+
+```bash
+mjpython examples/live_viewer.py   # Linux/Windows: python examples/live_viewer.py
+```
+
+Orbit/zoom with the mouse; close the window to stop. This is the standalone
+viewer — a live window blocks the dora event loop, so it is not part of the
+dataflow.
+
 ## Sim model & base loop (resolved offline)
 
 The shipped `assets/mjcf_lcmm_robot.xml` is a CAD export that is **not** runnable
