@@ -44,3 +44,23 @@ def test_unknown_named_returns_false_and_leaves_target():
 
 def test_reached_false_when_no_target():
     assert _driver().reached([0.0] * 6) is False
+
+
+def test_clear_resets_target():
+    d = _driver()
+    d.set_target([0.0] * 6)
+    d.clear()
+    assert d.target is None
+    assert d.reached([0.0] * 6) is False
+
+
+def test_reached_allows_longer_measured_vector():
+    d = _driver()
+    d.set_target([0.0] * 6)
+    assert d.reached([0.0] * 7) is True   # 7th channel ignored; first 6 match
+
+
+def test_reached_boundary_is_inclusive():
+    d = _driver()
+    d.set_target([0.1, 0.2, 0.0, -0.3, 0.0, 0.4])
+    assert d.reached([0.1, 0.2, 0.0, -0.3, 0.0, 0.45]) is True   # exactly target+tol
