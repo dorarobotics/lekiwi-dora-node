@@ -1,0 +1,46 @@
+# NOTE: node path/env keys must be reconciled against the actual dora-mujoco and octos_spec_bridge contracts during live bring-up (V1/V2).
+#
+# Run from a directory that has ./venv-python (virtualenv with dora, dora-mujoco, octos_spec_bridge installed).
+# Resolve ${VARS} before use:
+#   ${DORA_MOVEIT2}  — checkout of dora-mujoco (contains dora_mujoco/main.py)
+#   ${LEKIWI_NODE}   — checkout of lekiwi-dora-node (this repo)
+nodes:
+  - id: mujoco_sim
+    path: ./venv-python
+    args: ${DORA_MOVEIT2}/dora-mujoco/dora_mujoco/main.py
+    env:
+      MUJOCO_HEADLESS: "1"
+      MODEL_NAME: "${LEKIWI_NODE}/assets/mjcf_lcmm_robot.xml"
+    inputs:
+      tick: dora/timer/millis/10
+      control: lekiwi_node/control
+    outputs:
+      - joint_positions
+
+  - id: lekiwi_node
+    path: ./venv-python
+    args: -m lekiwi_node
+    env:
+      ROBOT_ID: lekiwi
+      MOTION_DEADLINE_S: "60"
+      PYTHONPATH: "${LEKIWI_NODE}"
+    inputs:
+      cmd_request: bridge/cmd_request
+      joint_positions: mujoco_sim/joint_positions
+    outputs:
+      - control
+      - cmd_response
+
+  - id: bridge
+    path: ./venv-python
+    args: -m octos_spec_bridge
+    env:
+      ROBOT_ID: lekiwi
+      HTTP_HOST: "127.0.0.1"
+      HTTP_PORT: "8770"
+      CMD_TIMEOUT_S: "70"
+      LOG_LEVEL: INFO
+    inputs:
+      cmd_response: lekiwi_node/cmd_response
+    outputs:
+      - cmd_request

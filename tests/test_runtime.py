@@ -139,6 +139,22 @@ def test_estop_stops_arm_and_aborts_pending():
     assert all(abs(vec[3 + i] - m) < 1e-6 for i, m in enumerate([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]))
 
 
+def test_arm_pending_times_out_and_clears_driver():
+    from lekiwi_node.node import LekiwiNode
+    from lekiwi_node.runtime import LekiwiRuntime
+    from lekiwi_node.geometry import Pose2D
+    n = LekiwiNode(robot_id="lekiwi", named_arm_poses={"home": [9, 9, 9, 9, 9, 9]})
+    n.install_all_verbs()
+    rt = LekiwiRuntime(n, base_pose_from=lambda a: Pose2D(float(a[0]), float(a[1]), float(a[2])),
+                       arm_joints_from=lambda a: [float(x) for x in a[3:9]], deadline_s=-1.0)
+    rt.on_event(_req("vendor.lerobot.arm.move_to_named", {"name": "home"}), _FakeDora())
+    dn = _FakeDora()
+    rt.on_event(_joints([0, 0, 0, 0, 0, 0, 0, 0, 0]), dn)  # arm far from [9]*6; deadline -1 -> timeout
+    p = _resp_payload([o for o in dn.outputs if o[0] == "cmd_response"][0][1])
+    assert p["ok"] is False and p["code"] == "BRIDGE_TIMEOUT"
+    assert rt._arm.target is None and n.arm_target is None
+
+
 def test_pending_times_out_with_bridge_timeout():
     from lekiwi_node.node import LekiwiNode
     from lekiwi_node.runtime import LekiwiRuntime

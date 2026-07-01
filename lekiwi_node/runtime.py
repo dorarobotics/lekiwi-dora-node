@@ -135,7 +135,9 @@ class LekiwiRuntime:
         else:
             twist, base_reached = Twist(0.0, 0.0, 0.0), False
         w1, w2, w3 = self._kiwi.body_to_wheels(twist.vx, twist.vy, twist.omega)
-        arm_cmd = self._arm.target if self._arm.target is not None else arm_meas
+        arm_cmd = self._arm.target if self._arm.target is not None else list(arm_meas)
+        if len(arm_cmd) < len(ARM_ACTUATORS):  # never send a short vector (would 0-fill actuators)
+            arm_cmd = list(arm_cmd) + [0.0] * (len(ARM_ACTUATORS) - len(arm_cmd))
         values = {WHEEL_ACTUATORS[0]: w1, WHEEL_ACTUATORS[1]: w2, WHEEL_ACTUATORS[2]: w3}
         for name, v in zip(ARM_ACTUATORS, arm_cmd):
             values[name] = v
