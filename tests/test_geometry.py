@@ -1,4 +1,7 @@
 import math
+
+import pytest
+
 from lekiwi_node.geometry import Pose2D, Twist, wrap_angle, yaw_from_quat
 
 
@@ -14,6 +17,8 @@ def test_yaw_from_90deg_about_z():
 def test_wrap_angle_folds_into_pi():
     assert abs(wrap_angle(3 * math.pi) - math.pi) < 1e-9
     assert abs(wrap_angle(-3 * math.pi) - math.pi) < 1e-9
+    assert abs(wrap_angle(math.pi) - math.pi) < 1e-9
+    assert abs(wrap_angle(-math.pi) - math.pi) < 1e-9
 
 
 def test_pose_and_twist_are_frozen_dataclasses():
@@ -21,3 +26,7 @@ def test_pose_and_twist_are_frozen_dataclasses():
     t = Twist(0.1, -0.2, 0.3)
     assert (p.x, p.y, p.yaw) == (1.0, 2.0, 0.5)
     assert (t.vx, t.vy, t.omega) == (0.1, -0.2, 0.3)
+    with pytest.raises(Exception):  # FrozenInstanceError
+        p.x = 99.0
+    with pytest.raises(Exception):
+        t.vx = 99.0
