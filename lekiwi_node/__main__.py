@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 import numpy as np
@@ -32,12 +33,14 @@ def _arm_joints(value) -> list[float]:
 
 def main() -> None:
     from dora import Node  # imported here so the module is importable without the dora runtime
+    import pyarrow as pa  # imported here so the module is importable without the dora runtime
     node = LekiwiNode(robot_id=os.environ.get("ROBOT_ID", "lekiwi"), named_arm_poses={"home": HOME})
     node.install_all_verbs()
     deadline = float(os.environ.get("MOTION_DEADLINE_S", "60.0"))
     rt = LekiwiRuntime(node, base_pose_from=_base_pose, arm_joints_from=_arm_joints, deadline_s=deadline,
                        velocity_timeout_s=float(os.environ.get("VELOCITY_TIMEOUT_S", "0.5")))
     dora = Node()
+    dora.send_output("capabilities", pa.array([json.dumps(node.capabilities_advert())]))
     for event in dora:
         if not rt.on_event(event, dora):
             break

@@ -36,6 +36,7 @@ nodes:
     outputs:
       - control
       - cmd_response
+      - capabilities
 
   - id: bridge
     path: ./venv-python
@@ -48,5 +49,6 @@ nodes:
       LOG_LEVEL: INFO
     inputs:
       cmd_response: lekiwi_node/cmd_response
+      capabilities: lekiwi_node/capabilities
     outputs:
       - cmd_request
