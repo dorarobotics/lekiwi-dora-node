@@ -5,7 +5,7 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "pyarrow",
-    "drive-kinematics @ git+https://github.com/dorarobotics/drive-kinematics.git",
+    "drive-kinematics @ git+https://github.com/dorarobotics/drive-kinematics.git@v0.1.0",
 ]
 
 [build-system]
