@@ -25,6 +25,8 @@ def test_pure_strafe_back_wheel_dominant():
     w1, w2, w3 = k.body_to_wheels(0.0, 0.3, 0.0)
     assert w2 < 0 and w1 > 0 and w3 > 0
     assert abs(w2) > abs(w1)
+    # exact ground truth: vy=0.3 * sin([150,-90,30])/r = 0.3*[0.5,-1.0,0.5]/0.05 = [3,-6,3]
+    assert abs(w1 - 3.0) < 1e-9 and abs(w2 - (-6.0)) < 1e-9 and abs(w3 - 3.0) < 1e-9
 
 
 def test_round_trip_recovers_body_velocity():

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import numpy as np
 
 from lekiwi_node.geometry import Twist
@@ -21,10 +19,13 @@ class KiwiDrive:
         self.base_radius = base_radius
         self.max_wheel_omega = max_wheel_omega
         angles = np.radians(np.array([240.0, 0.0, 120.0]) - 90.0)  # [150, -90, 30] deg
-        self._m = np.array([[math.cos(a), math.sin(a), base_radius] for a in angles])
+        self._m = np.array([[np.cos(a), np.sin(a), base_radius] for a in angles])
         self._m_inv = np.linalg.inv(self._m)
 
     def body_to_wheels(self, vx: float, vy: float, omega: float) -> tuple[float, float, float]:
+        # Clamping is applied per-wheel independently, so under saturation the achieved
+        # body velocity differs in direction from the command (a safety backstop, not a
+        # motion primitive).
         wheel_linear = self._m.dot(np.array([vx, vy, omega], dtype=float))
         wheel_omega = wheel_linear / self.wheel_radius
         clamped = np.clip(wheel_omega, -self.max_wheel_omega, self.max_wheel_omega)
